@@ -1,0 +1,5 @@
+torch~=2.1.0+cu121
+evaluate~=0.4.0
+datasets~=2.15.0
+transformers~=4.35.0
+accelerate

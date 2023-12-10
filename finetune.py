@@ -8,20 +8,21 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 import os
 
+model = "openai/whisper-tiny"
 common_voice = DatasetDict()
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train+validation",
-                                     token=True, )
+                                     token=True, ).select(range(1000))
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                    )
+                                    ).select(range(1000))
 
 common_voice = common_voice.remove_columns(
     ["accent", "age", "client_id", "down_votes", "gender", "locale", "path", "segment", "up_votes"])
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 
-tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-large-v3", language="Chinese", task="transcribe")
-feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-large-v3")
+tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="transcribe")
+feature_extractor = WhisperFeatureExtractor.from_pretrained(model)
 processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
 
@@ -38,7 +39,7 @@ def prepare_dataset(batch):
 
 
 common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"],
-                                num_proc=os.cpu_count())
+                                num_proc=os.cpu_count(), writer_batch_size=1000, load_from_cache_file=True, )
 
 
 @dataclass
@@ -92,20 +93,20 @@ def compute_metrics(pred):
 
 from transformers import WhisperForConditionalGeneration
 
-model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
+model = WhisperForConditionalGeneration.from_pretrained(model)
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
-    output_dir="whisper-large-v3-chinese",  # change to a repo name of your choice
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=1,  # increase by 2x for every 2x decrease in batch size
+    output_dir="Mithilss/whisper-large-v3-chinese",  # change to a repo name of your choice
+    per_device_train_batch_size=8,
+    gradient_accumulation_steps=4,  # increase by 2x for every 2x decrease in batch size
     learning_rate=1e-5,
     warmup_steps=500,
     fp16=True,
-    evaluation_strategy="epochs",
-    per_device_eval_batch_size=8,
+    evaluation_strategy="epoch",
+    per_device_eval_batch_size=2,
     predict_with_generate=True,
     generation_max_length=448,
     logging_steps=25,
@@ -115,6 +116,8 @@ training_args = Seq2SeqTrainingArguments(
     greater_is_better=False,
     push_to_hub=True,
     num_train_epochs=2,
+    save_strategy="epoch",
+    dataloader_pin_memory=True,
 
 )
 from transformers import Seq2SeqTrainer
@@ -130,3 +133,6 @@ trainer = Seq2SeqTrainer(
     tokenizer=processor.feature_extractor,
 )
 trainer.train()
+tokenizer.push_to_hub("Mithilss/whisper-large-v3-chinese")
+model.push_to_hub("Mithilss/whisper-large-v3-chinese")
+trainer.push_to_hub("Mithilss/whisper-large-v3-chinese")
