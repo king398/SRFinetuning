@@ -39,7 +39,7 @@ def prepare_dataset(batch):
 
 
 common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"],
-                                num_proc=4, load_from_cache_file=True,writer_batch_size=32)
+                                num_proc=4, load_from_cache_file=True, writer_batch_size=32)
 
 
 @dataclass
@@ -100,8 +100,8 @@ from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
     output_dir="Mithilss/whisper-large-v3-chinese",  # change to a repo name of your choice
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=4,  # increase by 2x for every 2x decrease in batch size
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=8,  # increase by 2x for every 2x decrease in batch size
     learning_rate=1e-5,
     warmup_steps=500,
     fp16=True,
@@ -132,9 +132,13 @@ trainer = Seq2SeqTrainer(
     compute_metrics=compute_metrics,
     tokenizer=processor.feature_extractor,
 )
+
+
 def launch():
     trainer.train()
     tokenizer.push_to_hub("Mithilss/whisper-large-v3-chinese")
     model.push_to_hub("Mithilss/whisper-large-v3-chinese")
     trainer.push_to_hub("Mithilss/whisper-large-v3-chinese")
+
+
 launch()
