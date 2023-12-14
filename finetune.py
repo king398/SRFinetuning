@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 import os
 
-model = "openai/whisper-tiny"
+model = "openai/whisper-large-v3"
 common_voice = DatasetDict()
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="train+validation",
