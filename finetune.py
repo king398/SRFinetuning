@@ -11,10 +11,10 @@ import os
 model = "openai/whisper-large-v3"
 common_voice = DatasetDict()
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train+validation",
-                                     token=True, )
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                    )
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="train+validation",
+                                     token=True, ).select(range(10))
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
+                                    ).select(range(10))
 
 common_voice = common_voice.remove_columns(
     ["accent", "age", "client_id", "down_votes", "gender", "locale", "path", "segment", "up_votes"])
@@ -110,10 +110,7 @@ training_args = Seq2SeqTrainingArguments(
     generation_max_length=448,
     logging_steps=25,
     report_to=["wandb"],
-    load_best_model_at_end=True,
-    metric_for_best_model="wer",
-    greater_is_better=False,
-    push_to_hub=True,
+    push_to_hub=False,
     num_train_epochs=2,
     save_strategy="epoch",
     dataloader_pin_memory=True,
@@ -143,6 +140,9 @@ def launch():
     with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
 
         trainer.train()
+    trainer.save_model()
+    model.push_to_hub("whisper-large-v3-chinese")
+    tokenizer.push_to_hub("whisper-large-v3-chinese")
 
 
 launch()
