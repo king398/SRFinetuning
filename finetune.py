@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 import os
 
-model = "openai/whisper-large-v3"
+model = "openai/whisper-tiny"
 common_voice = DatasetDict()
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train+validation",
@@ -38,35 +38,35 @@ def prepare_dataset(batch):
     return batch
 
 
-common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"],
-                                num_proc=os.cpu_count(), writer_batch_size=256)
+#common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"],)
 
 
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
     processor: Any
 
+    def prepare_dataset(self, batch):
+        # Add the prepare_dataset logic here
+        audio = batch["audio"]
+        batch["input_features"] = self.processor.feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
+        batch["labels"] = self.processor.tokenizer(batch["sentence"]).input_ids
+        return batch
+
     def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
-        # split inputs and labels since they have to be of different lengths and need different padding methods
-        # first treat the audio inputs by simply returning torch tensors
-        input_features = [{"input_features": feature["input_features"]} for feature in features]
+        processed_features = [self.prepare_dataset(feature) for feature in features]
+
+        # rest of the collation logic
+        input_features = [{"input_features": feature["input_features"]} for feature in processed_features]
         batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt")
 
-        # get the tokenized label sequences
-        label_features = [{"input_ids": feature["labels"]} for feature in features]
-        # pad the labels to max length
+        label_features = [{"input_ids": feature["labels"]} for feature in processed_features]
         labels_batch = self.processor.tokenizer.pad(label_features, return_tensors="pt")
 
-        # replace padding with -100 to ignore loss correctly
         labels = labels_batch["input_ids"].masked_fill(labels_batch.attention_mask.ne(1), -100)
-
-        # if bos token is appended in previous tokenization step,
-        # cut bos token here as it's append later anyways
         if (labels[:, 0] == self.processor.tokenizer.bos_token_id).all().cpu().item():
             labels = labels[:, 1:]
 
         batch["labels"] = labels
-
         return batch
 
 
