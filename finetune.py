@@ -11,10 +11,10 @@ import os
 model = "openai/whisper-large-v3"
 common_voice = DatasetDict()
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="train+validation",
-                                     token=True, ).select(range(100))
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
-                                    ).select(range(100))
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train+validation",
+                                     token=True, )
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+                                    )
 
 common_voice = common_voice.remove_columns(
     ["accent", "age", "client_id", "down_votes", "gender", "locale", "path", "segment", "up_votes"])
@@ -99,10 +99,9 @@ model.config.suppress_tokens = []
 from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
-    output_dir="Mithilss/whisper-large-v3-chinese",  # change to a repo name of your choice
+    output_dir="whisper-large-v3-chinese",  # change to a repo name of your choice
     per_device_train_batch_size=2,
-    gradient_accumulation_steps=8,  # increase by 2x for every 2x decrease in batch size
-    learning_rate=1e-5,
+    learning_rate=1.25e-6,
     warmup_steps=500,
     fp16=True,
     evaluation_strategy="epoch",
@@ -118,6 +117,12 @@ training_args = Seq2SeqTrainingArguments(
     num_train_epochs=2,
     save_strategy="epoch",
     dataloader_pin_memory=True,
+    dataloader_num_workers=8,
+
+    save_safetensors=True,
+    save_total_limit=1,
+    hub_token="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"
+
 
 )
 from transformers import Seq2SeqTrainer
@@ -135,10 +140,9 @@ trainer = Seq2SeqTrainer(
 
 
 def launch():
-    trainer.train()
-    tokenizer.push_to_hub("Mithilss/whisper-large-v3-chinese")
-    model.push_to_hub("Mithilss/whisper-large-v3-chinese")
-    trainer.push_to_hub("Mithilss/whisper-large-v3-chinese")
+    with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
+
+        trainer.train()
 
 
 launch()
