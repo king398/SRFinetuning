@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 import os
 
-model = "openai/whisper-tiny"
+model = "openai/whisper-large-v3"
 common_voice = DatasetDict()
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train+validation",
-                                     token=True, ).select(range(1000))
+                                     token=True, )
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                    ).select(range(1000))
+                                    )
 
 common_voice = common_voice.remove_columns(
     ["accent", "age", "client_id", "down_votes", "gender", "locale", "path", "segment", "up_votes"])
@@ -100,7 +100,7 @@ from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
     output_dir="Mithilss/whisper-large-v3-chinese",  # change to a repo name of your choice
-    per_device_train_batch_size=8,
+    per_device_train_batch_size=4,
     gradient_accumulation_steps=4,  # increase by 2x for every 2x decrease in batch size
     learning_rate=1e-5,
     warmup_steps=500,
