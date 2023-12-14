@@ -132,8 +132,9 @@ trainer = Seq2SeqTrainer(
     compute_metrics=compute_metrics,
     tokenizer=processor.feature_extractor,
 )
-if __name__ == "__main__":
+def launch():
     trainer.train()
     tokenizer.push_to_hub("Mithilss/whisper-large-v3-chinese")
     model.push_to_hub("Mithilss/whisper-large-v3-chinese")
     trainer.push_to_hub("Mithilss/whisper-large-v3-chinese")
+launch()
