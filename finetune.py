@@ -11,9 +11,9 @@ import os
 model = "openai/whisper-large-v3"
 common_voice = DatasetDict()
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train+validation",
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="train+validation",
                                      token=True, ).select(range(100))
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
                                     ).select(range(100))
 
 common_voice = common_voice.remove_columns(
