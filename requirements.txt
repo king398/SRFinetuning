@@ -4,3 +4,4 @@ transformers~=4.35.0
 accelerate
 nvitop
 wandb
+deepspeed
