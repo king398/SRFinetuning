@@ -111,14 +111,14 @@ training_args = Seq2SeqTrainingArguments(
     logging_steps=25,
     report_to=["wandb"],
     push_to_hub=False,
-    num_train_epochs=2,
+    num_train_epochs=1,
     save_strategy="epoch",
     dataloader_pin_memory=True,
     dataloader_num_workers=8,
 
     save_safetensors=True,
     save_total_limit=1,
-    hub_token="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"
+    hub_token="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"
 
 
 )
