@@ -7,3 +7,4 @@ wandb
 deepspeed
 soundfile
 librosa
+jiwer

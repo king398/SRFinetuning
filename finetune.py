@@ -39,7 +39,7 @@ def prepare_dataset(batch):
 
 
 common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"],
-                                num_proc=4, )
+                                num_proc=4, load_from_cache_file=True)
 
 
 @dataclass
@@ -132,7 +132,8 @@ trainer = Seq2SeqTrainer(
     compute_metrics=compute_metrics,
     tokenizer=processor.feature_extractor,
 )
-trainer.train()
-tokenizer.push_to_hub("Mithilss/whisper-large-v3-chinese")
-model.push_to_hub("Mithilss/whisper-large-v3-chinese")
-trainer.push_to_hub("Mithilss/whisper-large-v3-chinese")
+if __name__ == "__main__":
+    trainer.train()
+    tokenizer.push_to_hub("Mithilss/whisper-large-v3-chinese")
+    model.push_to_hub("Mithilss/whisper-large-v3-chinese")
+    trainer.push_to_hub("Mithilss/whisper-large-v3-chinese")
