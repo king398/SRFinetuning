@@ -39,7 +39,7 @@ def prepare_dataset(batch):
 
 
 common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"],
-                                num_proc=4, load_from_cache_file=True)
+                                num_proc=4, load_from_cache_file=True,writer_batch_size=32)
 
 
 @dataclass
