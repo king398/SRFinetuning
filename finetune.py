@@ -28,9 +28,8 @@ def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
 
 common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
                                                split="train+validation",
-                                               token=True, streaming=True)
+                                               token=True,)
 common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                              streaming=True
                                               )
 #
 
