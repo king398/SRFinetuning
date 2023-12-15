@@ -1,4 +1,4 @@
-from datasets import load_dataset, DatasetDict, concatenate_datasets
+from datasets import load_dataset, IterableDatasetDict, concatenate_datasets
 from datasets import Audio
 from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer
 import torch
@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Union
 import os
 
 model = "openai/whisper-large-v3"
-common_voice = DatasetDict()
+common_voice = IterableDatasetDict()
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train",
                                      token=True, streaming=True)
