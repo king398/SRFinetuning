@@ -7,7 +7,7 @@ import evaluate
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
-model = "openai/whisper-tiny"
+model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
 from datasets import interleave_datasets, load_dataset
 
@@ -26,10 +26,10 @@ def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
         return dataset
 
 
-common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb",
+common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
                                                split="train+validation",
                                                token=True, )
-common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
+common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
                                               )
 #
 
