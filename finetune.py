@@ -79,8 +79,8 @@ def filter_labels(labels_length):
 
 
 common_voice = common_voice.map(prepare_dataset).with_format("torch")
-common_voice = common_voice.filter(filter_inputs,input_columns=['input_length']).filter(filter_labels)
-common_voice = common_voice.filter(filter_labels, input_columns=["labels_length"], remove_columns=["labels_length"])
+common_voice = common_voice.filter(filter_inputs,input_columns=['input_length'])
+common_voice = common_voice.filter(filter_labels, input_columns=["labels_length"])
 
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
