@@ -47,7 +47,7 @@ common_voice = common_voice.remove_columns(
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 3 * 2
+    batch_size = 2 * 2
     batch_size_per_device = batch_size // 2
     epochs = 2
 
