@@ -6,19 +6,32 @@ import evaluate
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
-import os
 
 model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
+from datasets import interleave_datasets, load_dataset
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train",
-                                     token=True, streaming=True)
-common_voice["validation"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="validation",
-                                          token=True, streaming=True)
-common_voice['train'] = concatenate_datasets([common_voice['train'], common_voice['validation']])
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                    streaming=True
-                                    )
+
+def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
+    if "+" in split:
+        # load multiple splits separated by the `+` symbol *with* streaming mode
+        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=False, **kwargs)
+                          for split_name in split.split("+")]
+        # interleave multiple splits to form one dataset
+        interleaved_dataset = interleave_datasets(dataset_splits)
+        return interleaved_dataset
+    else:
+        # load a single split *with* streaming mode
+        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=False, **kwargs)
+        return dataset
+
+
+common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
+                                               split="train+validation",
+                                               token=True, streaming=True)
+common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+                                              streaming=True
+                                              )
 #
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
@@ -29,6 +42,7 @@ processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=toke
 
 common_voice = common_voice.remove_columns(
     ["accent", "age", "client_id", "down_votes", "gender", "locale", "path", "segment", "up_votes"])
+
 
 class CFG:
     num_devices = torch.cuda.device_count()
@@ -49,10 +63,7 @@ def prepare_dataset(batch):
     return batch
 
 
-common_voice = common_voice.map(prepare_dataset, )
-
-
-
+common_voice = common_voice.map(prepare_dataset).with_format("torch")
 
 
 @dataclass
@@ -82,9 +93,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
         return batch
 
-
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
-
 
 metric = evaluate.load("wer")
 
