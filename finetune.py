@@ -47,7 +47,7 @@ class CFG:
     num_devices = torch.cuda.device_count()
     batch_size = 2 * num_devices
     batch_size_per_device = batch_size // num_devices
-    epochs = 0.001
+    epochs = 2
 
 
 def prepare_dataset(batch):
