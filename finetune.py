@@ -54,16 +54,33 @@ def prepare_dataset(batch):
     # load and resample audio data from 48 to 16kHz
     audio = batch["audio"]
 
+    # compute input length
+    batch["input_length"] = len(batch["audio"])
+
     # compute log-Mel input features from input audio array
     batch["input_features"] = feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
 
     # encode target text to label ids
     batch["labels"] = tokenizer(batch["sentence"]).input_ids
+
+    # compute labels length
+    batch["labels_length"] = len(tokenizer(batch["sentence"], add_special_tokens=False).input_ids)
     return batch
+
+MAX_DURATION_IN_SECONDS = 30.0
+max_input_length = MAX_DURATION_IN_SECONDS * 16000
+
+def filter_inputs(input_length):
+    """Filter inputs with zero input length or longer than 30s"""
+    return 0 < input_length < max_input_length
+def filter_labels(labels_length):
+    """Filter empty label sequences"""
+    return 0 < len(labels_length)
 
 
 common_voice = common_voice.map(prepare_dataset).with_format("torch")
-
+common_voice = common_voice.filter(filter_inputs,input_columns=['input_length']).filter(filter_labels)
+common_voice = common_voice.filter(filter_labels, input_columns=["labels_length"], remove_columns=["labels_length"])
 
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
