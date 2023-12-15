@@ -34,7 +34,7 @@ class CFG:
     num_devices = torch.cuda.device_count()
     batch_size = 2 * num_devices
     batch_size_per_device = batch_size // num_devices
-    epochs = 2
+    epochs = 0.0001
 
 
 def prepare_dataset(batch):
@@ -125,7 +125,7 @@ training_args = Seq2SeqTrainingArguments(
     dataloader_pin_memory=True,
     dataloader_num_workers=8,
     eval_steps=40000 // CFG.batch_size,
-    max_steps=(40000 // CFG.batch_size) * CFG.epochs,
+    max_steps=int(40000 // (CFG.batch_size * CFG.epochs)),
     save_safetensors=True,
     save_total_limit=1,
     hub_token="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"
