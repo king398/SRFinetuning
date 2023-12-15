@@ -15,14 +15,14 @@ from datasets import interleave_datasets, load_dataset
 def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
     if "+" in split:
         # load multiple splits separated by the `+` symbol *with* streaming mode
-        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=True, **kwargs)
+        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=False, **kwargs)
                           for split_name in split.split("+")]
         # interleave multiple splits to form one dataset
         interleaved_dataset = interleave_datasets(dataset_splits)
         return interleaved_dataset
     else:
         # load a single split *with* streaming mode
-        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=True, **kwargs)
+        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=False, **kwargs)
         return dataset
 
 
