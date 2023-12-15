@@ -144,7 +144,6 @@ training_args = Seq2SeqTrainingArguments(
     max_steps=int(40000 * CFG.epochs // CFG.batch_size),
     save_safetensors=True,
     save_total_limit=1,
-    dataloader_num_workers=16,
 
 )
 from transformers import Seq2SeqTrainer
