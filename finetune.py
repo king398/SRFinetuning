@@ -1,4 +1,4 @@
-from datasets import load_dataset, DatasetDict
+from datasets import load_dataset, DatasetDict, concatenate_datasets
 from datasets import Audio
 from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer
 import torch
@@ -11,9 +11,13 @@ import os
 model = "openai/whisper-large-v3"
 common_voice = DatasetDict()
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="train+validation",
-                                     token=True, )
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="train",
+                                     token=True, streaming=True)
+common_voice["validation"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="validation",
+                                          token=True, streaming=True)
+common_voice['train'] = concatenate_datasets([common_voice['train'], common_voice['validation']])
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+                                    streaming=True
                                     )
 #
 common_voice = common_voice.remove_columns(
@@ -24,6 +28,13 @@ common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="transcribe")
 feature_extractor = WhisperFeatureExtractor.from_pretrained(model)
 processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
+
+
+class CFG:
+    num_devices = torch.cuda.device_count()
+    batch_size = 2 * num_devices
+    batch_size_per_device = batch_size // num_devices
+    epochs = 2
 
 
 def prepare_dataset(batch):
@@ -38,7 +49,7 @@ def prepare_dataset(batch):
     return batch
 
 
-common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"],)
+common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"], )
 
 
 @dataclass
@@ -99,26 +110,25 @@ from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
     output_dir="whisper-large-v3-chinese",  # change to a repo name of your choice
-    per_device_train_batch_size=2,
+    per_device_train_batch_size=CFG.batch_size_per_device,
     learning_rate=1.25e-6,
     warmup_steps=500,
     fp16=True,
-    evaluation_strategy="epoch",
-    per_device_eval_batch_size=2,
+    evaluation_strategy="steps",
+    per_device_eval_batch_size=CFG.batch_size_per_device,
     predict_with_generate=True,
     generation_max_length=448,
     logging_steps=25,
     report_to=["wandb"],
     push_to_hub=False,
-    num_train_epochs=2,
-    save_strategy="epoch",
+    save_strategy="steps",
     dataloader_pin_memory=True,
     dataloader_num_workers=8,
-
+    eval_steps=40000 // CFG.batch_size,
+    max_steps=(40000 // CFG.batch_size) * CFG.epochs,
     save_safetensors=True,
     save_total_limit=1,
     hub_token="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"
-
 
 )
 from transformers import Seq2SeqTrainer
@@ -137,11 +147,10 @@ trainer = Seq2SeqTrainer(
 
 def launch():
     with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
-
         trainer.train()
     model.push_to_hub("whisper-large-v3-chinese")
+    tokenizer.push_to_hub("whisper-large-v3-chinese")
     # upload the model to the hub
-
 
 
 launch()
