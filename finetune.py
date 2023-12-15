@@ -20,8 +20,6 @@ common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-
                                     streaming=True
                                     )
 #
-common_voice = common_voice.remove_columns(
-    ["accent", "age", "client_id", "down_votes", "gender", "locale", "path", "segment", "up_votes"])
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 
@@ -34,7 +32,7 @@ class CFG:
     num_devices = torch.cuda.device_count()
     batch_size = 2 * num_devices
     batch_size_per_device = batch_size // num_devices
-    epochs = 0.0001
+    epochs = 0.001
 
 
 def prepare_dataset(batch):
@@ -125,7 +123,8 @@ training_args = Seq2SeqTrainingArguments(
     dataloader_pin_memory=True,
     dataloader_num_workers=8,
     eval_steps=40000 // CFG.batch_size,
-    max_steps=int(40000 // (CFG.batch_size * CFG.epochs)),
+    save_steps=40000 // CFG.batch_size,
+    max_steps=int(40000 * CFG.epochs // CFG.batch_size),
     save_safetensors=True,
     save_total_limit=1,
     hub_token="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"
