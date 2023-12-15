@@ -7,7 +7,7 @@ import evaluate
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
-model = "openai/whisper-large-v3"
+model = "openai/whisper-tiny"
 common_voice = IterableDatasetDict()
 from datasets import interleave_datasets, load_dataset
 
@@ -15,21 +15,21 @@ from datasets import interleave_datasets, load_dataset
 def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
     if "+" in split:
         # load multiple splits separated by the `+` symbol *with* streaming mode
-        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=False, **kwargs)
+        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=True, **kwargs)
                           for split_name in split.split("+")]
         # interleave multiple splits to form one dataset
         interleaved_dataset = interleave_datasets(dataset_splits)
         return interleaved_dataset
     else:
         # load a single split *with* streaming mode
-        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=False, **kwargs)
+        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=True, **kwargs)
         return dataset
 
 
-common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
+common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb",
                                                split="train+validation",
                                                token=True, )
-common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
                                               )
 #
 
@@ -58,7 +58,7 @@ def prepare_dataset(batch):
     batch["input_features"] = feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
 
     # encode target text to label ids
-    batch["labels"] = tokenizer(batch["sentence"], truncation=True,
+    batch["labels"] = tokenizer(batch["sentence"], truncation=True, padding="max_length",
                                 max_length=448).input_ids
     return batch
 
@@ -142,7 +142,6 @@ training_args = Seq2SeqTrainingArguments(
     max_steps=int(40000 * CFG.epochs // CFG.batch_size),
     save_safetensors=True,
     save_total_limit=1,
-    hub_token="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"
 
 )
 from transformers import Seq2SeqTrainer
@@ -163,7 +162,6 @@ def launch():
     with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
         trainer.train()
     model.push_to_hub("whisper-large-v3-chinese")
-    tokenizer.push_to_hub("whisper-large-v3-chinese")
     # upload the model to the hub
 
 
