@@ -31,6 +31,8 @@ common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_
                                                token=True, )
 common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
                                               )
+common_voice['train'] = common_voice.shuffle(seed=42, buffer_size=2500)
+common_voice['test'] = common_voice.shuffle(seed=42, buffer_size=2500)
 #
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
@@ -45,8 +47,8 @@ common_voice = common_voice.remove_columns(
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 2 * num_devices
-    batch_size_per_device = batch_size // num_devices
+    batch_size = 3 * 2
+    batch_size_per_device = batch_size // 2
     epochs = 2
 
 
@@ -142,6 +144,7 @@ training_args = Seq2SeqTrainingArguments(
     max_steps=int(40000 * CFG.epochs // CFG.batch_size),
     save_safetensors=True,
     save_total_limit=1,
+    dataloader_num_workers=16,
 
 )
 from transformers import Seq2SeqTrainer
