@@ -55,7 +55,7 @@ def prepare_dataset(batch):
     audio = batch["audio"]
 
     # compute input length
-    batch["input_length"] = len(batch["audio"])
+    batch["input_length"] = len(batch["audio"]['array'])
 
     # compute log-Mel input features from input audio array
     batch["input_features"] = feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
