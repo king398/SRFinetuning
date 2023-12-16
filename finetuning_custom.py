@@ -31,7 +31,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1.25e-6)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 1
+    batch_size = 2
     batch_size_per_device = batch_size // 2
     epochs = 2
     num_workers = os.cpu_count() // 2
@@ -132,8 +132,8 @@ def compute_metrics(pred, labels):
 for epoch in range(CFG.epochs):
     model.train()
     total_loss = 0
-    for i,batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
-                      disable=not accelerate.is_local_main_process)):
+    for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
+                                   disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
             outputs = model(**batch)
@@ -146,11 +146,7 @@ for epoch in range(CFG.epochs):
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
                         "train_wer": metrics["wer"], "pred_str_train": metrics["pred_str"],
                         "label_str_train": metrics["label_str"]})
-        #accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
-        if i % 50 == 0:
-            print("Label: ", metrics["label_str"])
-            print("Pred: ", metrics["pred_str"])
-
+        # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
 
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
 
@@ -159,15 +155,17 @@ for epoch in range(CFG.epochs):
     total_eval_loss = 0
     average_wer = 0
     with torch.no_grad():
-        for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
-                          disable=not accelerate.is_local_main_process):
+        for i, batch in enumerate(tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
+                                       disable=not accelerate.is_local_main_process)):
             outputs = model(**batch)
             total_eval_loss += outputs.loss.item()
-            wer = compute_metrics(outputs, batch['labels'])
-            average_wer += wer["wer"] / len(eval_dataloader)
+            metrics = compute_metrics(outputs, batch['labels'])
+            average_wer += metrics["wer"] / len(eval_dataloader)
+            if i % 50 == 0:
+                accelerate.print("Label: ", metrics["label_str"])
+                accelerate.print("Pred: ", metrics["pred_str"])
 
-            accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": wer["wer"], "pred_str_eval": wer["pred_str"],
-                            "label_str_eval": wer["label_str"]})
+        accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": metrics["wer"],})
     accelerate.print(f"Average validation WER For epoch {epoch}: {average_wer,}")
     accelerate.print(f"Average evaluation loss For epoch {epoch}: {total_eval_loss / len(eval_dataloader)}")
 
