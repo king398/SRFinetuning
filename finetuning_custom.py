@@ -136,7 +136,8 @@ for epoch in range(CFG.epochs):
     for batch in tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
         optimizer.zero_grad()
-        outputs = model(**batch)
+        with torch.cuda.amp.autocast():
+            outputs = model(**batch)
         loss = outputs.loss
         total_loss += loss.item()
         loss.backward()
