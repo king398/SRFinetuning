@@ -31,7 +31,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1.25e-6)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 2 * accelerate.num_processes
+    batch_size = 1
     batch_size_per_device = batch_size // 2
     epochs = 2
     num_workers = os.cpu_count() // 2
@@ -122,6 +122,7 @@ def compute_metrics(pred, labels):
     # we do not want to group tokens when computing the metrics
     pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    print(pred_str, label_str)
 
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 

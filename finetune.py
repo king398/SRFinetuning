@@ -15,21 +15,21 @@ from datasets import interleave_datasets, load_dataset
 def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
     if "+" in split:
         # load multiple splits separated by the `+` symbol *with* streaming mode
-        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=False, **kwargs)
+        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=True, **kwargs)
                           for split_name in split.split("+")]
         # interleave multiple splits to form one dataset
         interleaved_dataset = interleave_datasets(dataset_splits)
         return interleaved_dataset
     else:
         # load a single split *with* streaming mode
-        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=False, **kwargs)
+        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=True, **kwargs)
         return dataset
 
 
-common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb",
+common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
                                                split="train+validation",
                                                token=True, )
-common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
+common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
                                               )
 # common_voice['train'] = common_voice['train'].shuffle(seed=42, buffer_size=2500)
 # common_voice['test'] = common_voice['test'].shuffle(seed=42, buffer_size=2500)
@@ -47,7 +47,7 @@ common_voice = common_voice.remove_columns(
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 2 * 2
+    batch_size = 2 * torch.cuda.device_count()
     batch_size_per_device = batch_size // 2
     epochs = 2
 
