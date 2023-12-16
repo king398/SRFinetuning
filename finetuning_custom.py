@@ -45,7 +45,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         # split inputs and labels since they have to be of different lengths and need different padding methods
         # first treat the audio inputs by simply returning torch tensors
         input_features = [{"input_features": feature["input_features"]} for feature in features]
-        batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt", padding="longest")
+        batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt", )
 
         # get the tokenized label sequences
         label_features = [{"input_ids": feature["labels"]} for feature in features]
@@ -92,7 +92,7 @@ class WhisperDataset(Dataset):
             feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
 
         # encode target text to label ids
-        batch["labels"] = tokenizer(batch["sentence"], truncation=True).input_ids
+        batch["labels"] = tokenizer(batch["sentence"], truncation=True, max_length=448, padding="max_length").input_ids
         return batch
 
     def __getitem__(self, idx):
@@ -100,9 +100,9 @@ class WhisperDataset(Dataset):
 
 
 # Prepare DataLoader for training and evaluation
-train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
+train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size_per_device,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers)
-eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size, collate_fn=data_collator,
+eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size_per_device, collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
