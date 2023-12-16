@@ -7,7 +7,7 @@ import evaluate
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
-model = "openai/whisper-large-v3"
+model = "openai/whisper-tiny"
 common_voice = IterableDatasetDict()
 from datasets import interleave_datasets, load_dataset
 
@@ -15,24 +15,24 @@ from datasets import interleave_datasets, load_dataset
 def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
     if "+" in split:
         # load multiple splits separated by the `+` symbol *with* streaming mode
-        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=True, **kwargs)
+        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=False, **kwargs)
                           for split_name in split.split("+")]
         # interleave multiple splits to form one dataset
         interleaved_dataset = interleave_datasets(dataset_splits)
         return interleaved_dataset
     else:
         # load a single split *with* streaming mode
-        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=True, **kwargs)
+        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=False, **kwargs)
         return dataset
 
 
-common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
+common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb",
                                                split="train+validation",
                                                token=True, )
-common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
                                               )
-common_voice['train'] = common_voice['train'].shuffle(seed=42, buffer_size=2500)
-common_voice['test'] = common_voice['test'].shuffle(seed=42, buffer_size=2500)
+# common_voice['train'] = common_voice['train'].shuffle(seed=42, buffer_size=2500)
+# common_voice['test'] = common_voice['test'].shuffle(seed=42, buffer_size=2500)
 #
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
@@ -144,7 +144,6 @@ training_args = Seq2SeqTrainingArguments(
     max_steps=int(40000 * CFG.epochs // CFG.batch_size),
     save_safetensors=True,
     save_total_limit=1,
-    dataloader_num_workers=8,
 
 )
 from transformers import Seq2SeqTrainer
