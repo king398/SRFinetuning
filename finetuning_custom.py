@@ -1,6 +1,5 @@
 import torch
 from torch.utils.data import DataLoader
-from transformers import AdamW
 from tqdm import tqdm
 from datasets import load_dataset, IterableDatasetDict, concatenate_datasets, interleave_datasets
 from datasets import Audio
@@ -15,7 +14,7 @@ from torch.utils.data import Dataset
 
 accelerate = Accelerator(log_with=['wandb'])
 accelerate.init_trackers(project_name="SR-Finetuning")
-model = "openai/whisper-tiny"
+model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
 # Initialize the model and optimizer
 tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="transcribe")
@@ -25,28 +24,15 @@ processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=toke
 model = WhisperForConditionalGeneration.from_pretrained(model)
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
-optimizer = AdamW(model.parameters(), lr=1.25e-6)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1.25e-6)
 
 
 class CFG:
     num_devices = torch.cuda.device_count()
     batch_size = 2 * accelerate.num_processes
     batch_size_per_device = batch_size // 2
-    epochs = 2
-
-
-def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
-    if "+" in split:
-        # load multiple splits separated by the `+` symbol *with* streaming mode
-        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=False, **kwargs)
-                          for split_name in split.split("+")]
-        # interleave multiple splits to form one dataset
-        interleaved_dataset = interleave_datasets(dataset_splits)
-        return interleaved_dataset
-    else:
-        # load a single split *with* streaming mode
-        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=False, **kwargs)
-        return dataset
+    epochs = 1
+    num_workers = 16
 
 
 @dataclass
@@ -79,25 +65,13 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb",
-                                               split="train+validation",
-                                               token=True, )
-common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
-                                              )
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
+                                     split="train+validation",
+                                     token=True, )
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+                                    )
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
-
-
-def prepare_dataset(batch):
-    # load and resample audio data from 48 to 16kHz
-    audio = batch["audio"]
-
-    # compute log-Mel input features from input audio array
-    batch["input_features"] = feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
-
-    # encode target text to label ids
-    batch["labels"] = tokenizer(batch["sentence"], truncation=True).input_ids
-    return batch
 
 
 class WhisperDataset(Dataset):
@@ -107,15 +81,27 @@ class WhisperDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+    def prepare_dataset(self, batch):
+        # load and resample audio data from 48 to 16kHz
+        audio = batch["audio"]
+
+        # compute log-Mel input features from input audio array
+        batch["input_features"] = \
+            feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
+
+        # encode target text to label ids
+        batch["labels"] = tokenizer(batch["sentence"], truncation=True).input_ids
+        return batch
+
     def __getitem__(self, idx):
-        return prepare_dataset(self.dataset[idx])
+        return self.prepare_dataset(self.dataset[idx])
 
 
 # Prepare DataLoader for training and evaluation
 train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
-                              collate_fn=data_collator, pin_memory=True, num_workers=16)
-eval_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size, collate_fn=data_collator,
-                             pin_memory=True, num_workers=16)
+                              collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers)
+eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size, collate_fn=data_collator,
+                             pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
                                             num_warmup_steps=500,
@@ -125,16 +111,15 @@ model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_datal
 metric = evaluate.load("wer")
 
 
-def compute_metrics(pred):
-    pred_ids = pred.predictions
-    label_ids = pred.label_ids
+def compute_metrics(pred, labels):
+    pred_ids = pred.logits.argmax(-1)
 
     # replace -100 with the pad_token_id
-    label_ids[label_ids == -100] = tokenizer.pad_token_id
+    labels[labels == -100] = tokenizer.pad_token_id
 
     # we do not want to group tokens when computing the metrics
     pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+    label_str = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 
@@ -154,7 +139,7 @@ for epoch in range(CFG.epochs):
         optimizer.step()
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
-                        "train_wer": compute_metrics(outputs)["wer"]})
+                        "train_wer": compute_metrics(outputs, batch['labels'])["wer"]})
 
     accelerate.print(f"Average training loss: {total_loss / len(train_dataloader)}")
 
@@ -167,7 +152,7 @@ for epoch in range(CFG.epochs):
                           disable=not accelerate.is_local_main_process):
             outputs = model(**batch)
             total_eval_loss += outputs.loss.item()
-            wer = compute_metrics(outputs)
+            wer = compute_metrics(outputs, batch['labels'])
             average_wer += wer["wer"] / len(eval_dataloader)
             accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": wer["wer"]})
     accelerate.print(f"Average validation WER: {average_wer}")
@@ -175,6 +160,11 @@ for epoch in range(CFG.epochs):
 
 # Save the model
 model = accelerate.unwrap_model(model)
-model.save_pretrained("whisper-large-v3-chinese", use_safetensors=True)
+if accelerate.is_local_main_process:
+    print("Saving model")
+    model.push_to_hub("whisper-large-v3-chinese-finetune", use_safetensors=True, )
+
+    tokenizer.push_to_hub("whisper-large-v3-chinese-finetune", )
+accelerate.end_training()
 # Optionally, push to the hub
 # model.push_to_hub("whisper-large-v3-chinese")
