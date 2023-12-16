@@ -26,14 +26,15 @@ processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=toke
 model = WhisperForConditionalGeneration.from_pretrained(model)
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
-optimizer = torch.optim.AdamW(model.parameters(), lr=1.25e-6)
+model.gradient_checkpointing_enable()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 2
+    batch_size = 8
     batch_size_per_device = batch_size // 2
-    epochs = 2
+    epochs = 3
     num_workers = os.cpu_count() // 2
 
 
@@ -67,11 +68,11 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb",
                                      split="train+validation",
                                      token=True, num_proc=8)
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                    num_proc=8)
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "hsb", split="test", token=True,
+                                    num_proc=8, )
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 
@@ -106,15 +107,15 @@ eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CF
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=500,
+                                            num_warmup_steps=100,
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
-metric = evaluate.load("wer")
+metric = evaluate.load("cer")
 
 
 def compute_metrics(pred, labels):
-    pred_ids = pred.logits.argmax(-1)
+    pred_ids = pred.argmax(-1)
 
     # replace -100 with the pad_token_id
     labels[labels == -100] = tokenizer.pad_token_id
@@ -135,17 +136,14 @@ for epoch in range(CFG.epochs):
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(dtype=torch.float16):
             outputs = model(**batch)
         loss = outputs.loss
         total_loss += loss.item()
         loss.backward()
         optimizer.step()
         scheduler.step()
-        metrics = compute_metrics(outputs, batch['labels'])
-        accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
-                        "train_wer": metrics["wer"], "pred_str_train": metrics["pred_str"],
-                        "label_str_train": metrics["label_str"]})
+        accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
 
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
@@ -154,18 +152,20 @@ for epoch in range(CFG.epochs):
     model.eval()
     total_eval_loss = 0
     average_wer = 0
-    with torch.no_grad():
+    with (torch.no_grad()):
         for i, batch in enumerate(tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                                        disable=not accelerate.is_local_main_process)):
             outputs = model(**batch)
             total_eval_loss += outputs.loss.item()
-            metrics = compute_metrics(outputs, batch['labels'])
-            average_wer += metrics["wer"] / len(eval_dataloader)
+
+            outputs, batch['labels'] = accelerate.gather_for_metrics((outputs, batch['labels']))
+
             if i % 50 == 0:
+                metrics = compute_metrics(outputs, batch['labels'])
                 accelerate.print("Label: ", metrics["label_str"])
                 accelerate.print("Pred: ", metrics["pred_str"])
 
-        accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": metrics["wer"],})
+        # accelerate.log({"eval_wer": metrics["wer"], })
     accelerate.print(f"Average validation WER For epoch {epoch}: {average_wer,}")
     accelerate.print(f"Average evaluation loss For epoch {epoch}: {total_eval_loss / len(eval_dataloader)}")
 
