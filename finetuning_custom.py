@@ -31,7 +31,7 @@ class CFG:
     num_devices = torch.cuda.device_count()
     batch_size = 2 * accelerate.num_processes
     batch_size_per_device = batch_size // 2
-    epochs = 1
+    epochs = 2
     num_workers = 16
 
 
