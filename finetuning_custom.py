@@ -122,7 +122,6 @@ def compute_metrics(pred, labels):
     # we do not want to group tokens when computing the metrics
     pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = tokenizer.batch_decode(labels, skip_special_tokens=True)
-    print(pred_str, label_str)
 
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 
@@ -145,6 +144,7 @@ for epoch in range(CFG.epochs):
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
                         "train_wer": compute_metrics(outputs, batch['labels'])["wer"]})
+        accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
 
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
 
