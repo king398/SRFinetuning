@@ -1,3 +1,5 @@
+import os
+
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -32,7 +34,7 @@ class CFG:
     batch_size = 2 * accelerate.num_processes
     batch_size_per_device = batch_size // 2
     epochs = 2
-    num_workers = 16
+    num_workers = os.cpu_count() // 2
 
 
 @dataclass
@@ -67,9 +69,9 @@ data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
                                      split="train+validation",
-                                     token=True, )
+                                     token=True, num_proc=8)
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                    )
+                                    num_proc=8)
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 
@@ -127,36 +129,39 @@ def compute_metrics(pred, labels):
 
 
 # Custom training loop
-for epoch in range(CFG.epochs):
-    model.train()
-    total_loss = 0
-    for batch in tqdm(train_dataloader, desc=f"Training Epoch {epoch}", disable=not accelerate.is_local_main_process):
-        optimizer.zero_grad()
-        outputs = model(**batch)
-        loss = outputs.loss
-        total_loss += loss.item()
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-        accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
-                        "train_wer": compute_metrics(outputs, batch['labels'])["wer"]})
-
-    accelerate.print(f"Average training loss: {total_loss / len(train_dataloader)}")
-
-    # Evaluation loop
-    model.eval()
-    total_eval_loss = 0
-    average_wer = 0
-    with torch.no_grad():
-        for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
+def training():
+    for epoch in range(CFG.epochs):
+        model.train()
+        total_loss = 0
+        for batch in tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                           disable=not accelerate.is_local_main_process):
+            optimizer.zero_grad()
             outputs = model(**batch)
-            total_eval_loss += outputs.loss.item()
-            wer = compute_metrics(outputs, batch['labels'])
-            average_wer += wer["wer"] / len(eval_dataloader)
-            accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": wer["wer"]})
-    accelerate.print(f"Average validation WER: {average_wer}")
-    accelerate.print(f"Average evaluation loss: {total_eval_loss / len(eval_dataloader)}")
+            loss = outputs.loss
+            total_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
+                            "train_wer": compute_metrics(outputs, batch['labels'])["wer"]})
+
+        accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
+
+        # Evaluation loop
+        model.eval()
+        total_eval_loss = 0
+        average_wer = 0
+        with torch.no_grad():
+            for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
+                              disable=not accelerate.is_local_main_process):
+                outputs = model(**batch)
+                total_eval_loss += outputs.loss.item()
+                wer = compute_metrics(outputs, batch['labels'])
+                average_wer += wer["wer"] / len(eval_dataloader)
+                accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": wer["wer"]})
+        accelerate.print(f"Average validation WER For epoch {epoch}: {average_wer,}")
+        accelerate.print(f"Average evaluation loss For epoch {epoch}: {total_eval_loss / len(eval_dataloader)}")
+
 
 # Save the model
 model = accelerate.unwrap_model(model)
