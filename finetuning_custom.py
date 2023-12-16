@@ -125,7 +125,7 @@ def compute_metrics(pred, labels):
 
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 
-    return {"wer": wer}
+    return {"wer": wer, "pred_str": pred_str, "label_str": label_str}
 
 
 # Custom training loop
@@ -142,9 +142,11 @@ for epoch in range(CFG.epochs):
         loss.backward()
         optimizer.step()
         scheduler.step()
+        metrics = compute_metrics(outputs, batch['labels'])
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
-                        "train_wer": compute_metrics(outputs, batch['labels'])["wer"]})
-        accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
+                        "train_wer": metrics["wer"], "pred_str_train": metrics["pred_str"],
+                        "label_str_train": metrics["label_str"]})
+        #accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
 
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
 
@@ -159,7 +161,9 @@ for epoch in range(CFG.epochs):
             total_eval_loss += outputs.loss.item()
             wer = compute_metrics(outputs, batch['labels'])
             average_wer += wer["wer"] / len(eval_dataloader)
-            accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": wer["wer"]})
+
+            accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": wer["wer"], "pred_str_eval": wer["pred_str"],
+                            "label_str_eval": wer["label_str"]})
     accelerate.print(f"Average validation WER For epoch {epoch}: {average_wer,}")
     accelerate.print(f"Average evaluation loss For epoch {epoch}: {total_eval_loss / len(eval_dataloader)}")
 
