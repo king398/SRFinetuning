@@ -173,9 +173,9 @@ for epoch in range(CFG.epochs):
 model = accelerate.unwrap_model(model)
 if accelerate.is_local_main_process:
     print("Saving model")
-    model.push_to_hub("whisper-large-v3-chinese-finetune", use_safetensors=True, )
+    model.push_to_hub("whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr", use_safetensors=True, )
 
-    tokenizer.push_to_hub("whisper-large-v3-chinese-finetune", )
+    tokenizer.push_to_hub("whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr", )
 accelerate.end_training()
 # Optionally, push to the hub
 # model.push_to_hub("whisper-large-v3-chinese")
