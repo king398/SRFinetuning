@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 from torch.utils.data import Dataset
 
-accelerate = Accelerator()
+accelerate = Accelerator(log_with=['wandb'])
+accelerate.init_trackers(project_name="SR-Finetuning")
 model = "openai/whisper-tiny"
 common_voice = IterableDatasetDict()
 # Initialize the model and optimizer
@@ -29,7 +30,7 @@ optimizer = AdamW(model.parameters(), lr=1.25e-6)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 2 * 2
+    batch_size = 2 * accelerate.num_processes
     batch_size_per_device = batch_size // 2
     epochs = 2
 
@@ -56,7 +57,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         # split inputs and labels since they have to be of different lengths and need different padding methods
         # first treat the audio inputs by simply returning torch tensors
         input_features = [{"input_features": feature["input_features"]} for feature in features]
-        batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt")
+        batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt", padding="longest")
 
         # get the tokenized label sequences
         label_features = [{"input_ids": feature["labels"]} for feature in features]
@@ -95,8 +96,7 @@ def prepare_dataset(batch):
     batch["input_features"] = feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
 
     # encode target text to label ids
-    batch["labels"] = tokenizer(batch["sentence"], truncation=True, padding="max_length",
-                                max_length=448).input_ids
+    batch["labels"] = tokenizer(batch["sentence"], truncation=True).input_ids
     return batch
 
 
@@ -145,7 +145,7 @@ def compute_metrics(pred):
 for epoch in range(CFG.epochs):
     model.train()
     total_loss = 0
-    for batch in tqdm(train_dataloader, desc=f"Training Epoch {epoch}"):
+    for batch in tqdm(train_dataloader, desc=f"Training Epoch {epoch}", disable=not accelerate.is_local_main_process):
         optimizer.zero_grad()
         outputs = model(**batch)
         loss = outputs.loss
@@ -153,20 +153,25 @@ for epoch in range(CFG.epochs):
         loss.backward()
         optimizer.step()
         scheduler.step()
+        accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item(),
+                        "train_wer": compute_metrics(outputs)["wer"]})
 
-    print(f"Average training loss: {total_loss / len(train_dataloader)}")
+    accelerate.print(f"Average training loss: {total_loss / len(train_dataloader)}")
 
     # Evaluation loop
     model.eval()
     total_eval_loss = 0
     average_wer = 0
     with torch.no_grad():
-        for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}"):
+        for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
+                          disable=not accelerate.is_local_main_process):
             outputs = model(**batch)
             total_eval_loss += outputs.loss.item()
             wer = compute_metrics(outputs)
-
-    print(f"Average evaluation loss: {total_eval_loss / len(eval_dataloader)}")
+            average_wer += wer["wer"] / len(eval_dataloader)
+            accelerate.log({"eval_loss": outputs.loss.item(), "eval_wer": wer["wer"]})
+    accelerate.print(f"Average validation WER: {average_wer}")
+    accelerate.print(f"Average evaluation loss: {total_eval_loss / len(eval_dataloader)}")
 
 # Save the model
 model = accelerate.unwrap_model(model)
