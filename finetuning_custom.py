@@ -132,8 +132,8 @@ def compute_metrics(pred, labels):
 for epoch in range(CFG.epochs):
     model.train()
     total_loss = 0
-    for batch in tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
-                      disable=not accelerate.is_local_main_process):
+    for i,batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
+                      disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
             outputs = model(**batch)
@@ -147,6 +147,10 @@ for epoch in range(CFG.epochs):
                         "train_wer": metrics["wer"], "pred_str_train": metrics["pred_str"],
                         "label_str_train": metrics["label_str"]})
         #accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
+        if i % 50 == 0:
+            print("Label: ", metrics["label_str"])
+            print("Pred: ", metrics["pred_str"])
+
 
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
 
