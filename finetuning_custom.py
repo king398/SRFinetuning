@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 from torch.utils.data import Dataset
 
-accelerate = Accelerator(log_with=['wandb'])
+accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16")
 accelerate.init_trackers(project_name="SR-Finetuning")
 model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
@@ -100,9 +100,9 @@ class WhisperDataset(Dataset):
 
 
 # Prepare DataLoader for training and evaluation
-train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size_per_device,
+train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers)
-eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size_per_device, collate_fn=data_collator,
+eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size, collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
