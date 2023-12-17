@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 from torch.utils.data import Dataset
 
-accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16")
+accelerate = Accelerator(log_with=['wandb'], mixed_precision="bf16")
 accelerate.init_trackers(project_name="SR-Finetuning")
 model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
@@ -28,14 +28,14 @@ model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
 model.use_cache = False
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
 
 
 class CFG:
     num_devices = torch.cuda.device_count()
     batch_size = 32
     batch_size_per_device = batch_size // 2
-    epochs = 4
+    epochs = 1
     num_workers = os.cpu_count()
 
 
@@ -70,12 +70,14 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN",
-                                     split="train+validation",
+                                     split="train+validation+other",
                                      token=True, num_proc=8)
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN", split="test", token=True,
                                     num_proc=8, )
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
+# shuffle the dataset
+common_voice["train"] = common_voice["train"].shuffle(seed=42)
 
 
 class WhisperDataset(Dataset):
@@ -108,7 +110,7 @@ eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CF
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=50,
+                                            num_warmup_steps=10,
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
@@ -137,9 +139,9 @@ for epoch in range(CFG.epochs):
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
-        with torch.cuda.amp.autocast(dtype=torch.float16) and torch.backends.cuda.sdp_kernel(enable_flash=True,
-                                                                                             enable_math=False,
-                                                                                             enable_mem_efficient=False):
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16) and torch.backends.cuda.sdp_kernel(enable_flash=True,
+                                                                                              enable_math=False,
+                                                                                              enable_mem_efficient=False):
             outputs = model(**batch)
         loss = outputs.loss
         total_loss += loss.item()
@@ -151,8 +153,8 @@ for epoch in range(CFG.epochs):
     model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", use_safetensors=True, )
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-{epoch}", )
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", )
+        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", )
     accelerate.wait_for_everyone()
 
 # Evaluation loop
