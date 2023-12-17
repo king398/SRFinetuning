@@ -27,6 +27,7 @@ model = WhisperForConditionalGeneration.from_pretrained(model)
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
+model.use_cache = False
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
 
@@ -149,26 +150,9 @@ for epoch in range(CFG.epochs):
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
 
     # Evaluation loop
-    model.eval()
-    total_eval_loss = 0
-    average_wer = 0
-    with (torch.no_grad()):
-        for i, batch in enumerate(tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
-                                       disable=not accelerate.is_local_main_process)):
 
-            outputs = model(**batch)
-            total_eval_loss += outputs.loss.item()
-
-            outputs, batch['labels'] = accelerate.gather_for_metrics((outputs, batch['labels']))
-
-            if i % 50 == 0:
-                metrics = compute_metrics(outputs, batch['labels'])
-                accelerate.print("Label: ", metrics["label_str"])
-                accelerate.print("Pred: ", metrics["pred_str"])
 
         # accelerate.log({"eval_wer": metrics["wer"], })
-    accelerate.print(f"Average validation WER For epoch {epoch}: {average_wer,}")
-    accelerate.print(f"Average evaluation loss For epoch {epoch}: {total_eval_loss / len(eval_dataloader)}")
 
 # Save the model
 model = accelerate.unwrap_model(model)
