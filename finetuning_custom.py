@@ -33,9 +33,9 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 12
+    batch_size = 16
     batch_size_per_device = batch_size // 2
-    epochs = 3
+    epochs = 4
     num_workers = os.cpu_count() // 2
 
 
@@ -137,7 +137,7 @@ for epoch in range(CFG.epochs):
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
-        with torch.cuda.amp.autocast(dtype=torch.float16) :
+        with torch.cuda.amp.autocast(dtype=torch.float16):
             outputs = model(**batch)
         loss = outputs.loss
         total_loss += loss.item()
@@ -148,11 +148,12 @@ for epoch in range(CFG.epochs):
         # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
 
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
+    model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", use_safetensors=True, )
+    processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-{epoch}", )
 
-    # Evaluation loop
+# Evaluation loop
 
-
-        # accelerate.log({"eval_wer": metrics["wer"], })
+# accelerate.log({"eval_wer": metrics["wer"], })
 
 # Save the model
 model = accelerate.unwrap_model(model)
