@@ -136,7 +136,9 @@ for epoch in range(CFG.epochs):
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
-        with torch.cuda.amp.autocast(dtype=torch.float16):
+        with torch.cuda.amp.autocast(dtype=torch.float16) and torch.backends.cuda.sdp_kernel(enable_flash=True,
+                                                                                             enable_math=True,
+                                                                                             enable_mem_efficient=True):
             outputs = model(**batch)
         loss = outputs.loss
         total_loss += loss.item()
@@ -155,7 +157,9 @@ for epoch in range(CFG.epochs):
     with (torch.no_grad()):
         for i, batch in enumerate(tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                                        disable=not accelerate.is_local_main_process)):
-            outputs = model(**batch)
+            with      torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
+
+                outputs = model(**batch)
             total_eval_loss += outputs.loss.item()
 
             outputs, batch['labels'] = accelerate.gather_for_metrics((outputs, batch['labels']))
