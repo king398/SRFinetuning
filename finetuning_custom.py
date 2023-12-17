@@ -108,7 +108,7 @@ eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CF
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=100,
+                                            num_warmup_steps=50,
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
@@ -137,8 +137,9 @@ for epoch in range(CFG.epochs):
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
-        with torch.cuda.amp.autocast(dtype=torch.float16) and  torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
-
+        with torch.cuda.amp.autocast(dtype=torch.float16) and torch.backends.cuda.sdp_kernel(enable_flash=True,
+                                                                                             enable_math=False,
+                                                                                             enable_mem_efficient=False):
             outputs = model(**batch)
         loss = outputs.loss
         total_loss += loss.item()
@@ -147,10 +148,12 @@ for epoch in range(CFG.epochs):
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
-
+    model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
-    model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", use_safetensors=True, )
-    processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-{epoch}", )
+    if accelerate.is_local_main_process:
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", use_safetensors=True, )
+        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-{epoch}", )
+    accelerate.wait_for_everyone()
 
 # Evaluation loop
 
