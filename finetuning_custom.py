@@ -36,7 +36,7 @@ class CFG:
     batch_size = 32
     batch_size_per_device = batch_size // 2
     epochs = 4
-    num_workers = os.cpu_count() // 2
+    num_workers = os.cpu_count()
 
 
 @dataclass
