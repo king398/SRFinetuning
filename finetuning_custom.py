@@ -68,10 +68,10 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN",
                                      split="train+validation",
                                      token=True, num_proc=8)
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN", split="test", token=True,
                                     num_proc=8, )
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
