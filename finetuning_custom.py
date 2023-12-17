@@ -153,8 +153,8 @@ for epoch in range(CFG.epochs):
     model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", )
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr-epoch-{epoch}", )
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-5-lr-epoch-{epoch}-other", )
+        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-5-lr-epoch-{epoch}-other", )
     accelerate.wait_for_everyone()
 
 # Evaluation loop
