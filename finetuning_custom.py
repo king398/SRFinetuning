@@ -28,12 +28,12 @@ model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
 model.use_cache = False
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-6)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
 
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 8
+    batch_size = 32
     batch_size_per_device = batch_size // 2
     epochs = 1
     num_workers = os.cpu_count()
@@ -154,16 +154,16 @@ for epoch in range(CFG.epochs):
             accelerate.wait_for_everyone()
             model = accelerate.unwrap_model(model)
             if accelerate.is_local_main_process:
-                model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-half-other",
-                                  safe_serialization=True)
+                model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-half-other", safe_serialization =True)
                 processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-half-other", )
             accelerate.wait_for_everyone()
     model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-other", safe_serialization=True)
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-other", safe_serialization =True)
         processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-other", )
     accelerate.wait_for_everyone()
+
 
 # Save the model
 accelerate.end_training()
