@@ -35,7 +35,7 @@ class CFG:
     num_devices = torch.cuda.device_count()
     batch_size = 32
     batch_size_per_device = batch_size // 2
-    epochs = 1
+    epochs = 5
     num_workers = os.cpu_count()
 
 
@@ -70,7 +70,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
 common_voice["train"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN",
-                                     split="train+validation+other",
+                                     split="train+validation",
                                      token=True, num_proc=8)
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN", split="test", token=True,
                                     num_proc=8, )
@@ -150,18 +150,11 @@ for epoch in range(CFG.epochs):
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
-        if i == len(train_dataloader) // 2:
-            accelerate.wait_for_everyone()
-            model = accelerate.unwrap_model(model)
-            if accelerate.is_local_main_process:
-                model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-half-other", safe_serialization =True)
-                processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-half-other", )
-            accelerate.wait_for_everyone()
     model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-other", safe_serialization =True)
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-other", )
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-final", safe_serialization =True)
+        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-final", )
     accelerate.wait_for_everyone()
 
 
