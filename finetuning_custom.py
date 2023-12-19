@@ -73,7 +73,7 @@ common_voice["train"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh
                                      split="train+validation",
                                      token=True, num_proc=8)
 common_voice["test"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN", split="test", token=True,
-                                    num_proc=8, )
+                                    num_proc=8, ).select(range(100))
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 # shuffle the dataset
@@ -110,7 +110,7 @@ eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CF
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=10,
+                                            num_warmup_steps=len(train_dataloader),
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
@@ -143,6 +143,7 @@ for epoch in range(CFG.epochs):
                                                                                               enable_math=False,
                                                                                               enable_mem_efficient=False):
             outputs = model(**batch)
+
         loss = outputs.loss
         total_loss += loss.item()
         loss.backward()
@@ -150,13 +151,13 @@ for epoch in range(CFG.epochs):
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
+
     model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-final", safe_serialization =True)
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-final", safe_serialization=True)
         processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-final", )
     accelerate.wait_for_everyone()
-
 
 # Save the model
 accelerate.end_training()
