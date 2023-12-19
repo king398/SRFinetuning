@@ -150,24 +150,20 @@ for epoch in range(CFG.epochs):
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
+        if i == len(train_dataloader) // 2:
+            accelerate.wait_for_everyone()
+            model = accelerate.unwrap_model(model)
+            if accelerate.is_local_main_process:
+                model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-half-other", safe_serialization =True)
+                processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-half-other", )
+            accelerate.wait_for_everyone()
     model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-5-lr-epoch-{epoch}-other", )
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-4-epochs-1e-5-lr-epoch-{epoch}-other", )
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-other", safe_serialization =True)
+        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-other", )
     accelerate.wait_for_everyone()
 
-# Evaluation loop
-
-# accelerate.log({"eval_wer": metrics["wer"], })
 
 # Save the model
-model = accelerate.unwrap_model(model)
-if accelerate.is_local_main_process:
-    print("Saving model")
-    model.push_to_hub("whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr", use_safetensors=True, )
-
-    tokenizer.push_to_hub("whisper-large-v3-chinese-finetune-4-epochs-1e-4-lr", )
 accelerate.end_training()
-# Optionally, push to the hub
-# model.push_to_hub("whisper-large-v3-chinese")
