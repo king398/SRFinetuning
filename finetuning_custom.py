@@ -36,7 +36,7 @@ class CFG:
     batch_size = 4
     batch_size_per_device = batch_size // torch.cuda.device_count()
     epochs = 5
-    num_workers = os.cpu_count()
+    num_workers = 8
 
 
 @dataclass
@@ -71,9 +71,9 @@ data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
 common_voice["train"] = load_dataset("Mithilss/L2TS",
                                      split="train",
-                                     token=True, num_proc=8)
+                                     token=True, )
 common_voice["test"] = load_dataset("Mithilss/L2TS", split="test", token=True,
-                                    num_proc=8, )
+                                    )
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 # shuffle the dataset
