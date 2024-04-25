@@ -13,8 +13,8 @@ from tqdm import tqdm
 from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer, WhisperForConditionalGeneration, \
     get_linear_schedule_with_warmup
 
-accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16", gradient_accumulation_steps=8)
-accelerate.init_trackers(project_name="SR-Finetuning")
+accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16", gradient_accumulation_steps=4)
+accelerate.init_trackers(project_name="SR-Finetuning-custom")
 model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
 # Initialize the model and optimizer
@@ -33,7 +33,7 @@ optimizer = AdamW8bit(model.parameters(), lr=1e-6)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 2
+    batch_size = 4
     batch_size_per_device = batch_size // torch.cuda.device_count()
     epochs = 5
     num_workers = 16
