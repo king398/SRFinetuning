@@ -138,6 +138,8 @@ def compute_metrics(pred, labels):
 for epoch in range(CFG.epochs):
     model.train()
     total_loss = 0
+    model.gradient_checkpointing_enable()
+
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
@@ -158,6 +160,7 @@ for epoch in range(CFG.epochs):
     val_loss = 0
     predictions = []
     labels = []
+    model.gradient_checkpointing_disable()
 
     for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
