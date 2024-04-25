@@ -160,7 +160,10 @@ for epoch in range(CFG.epochs):
 
     for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
-        with torch.no_grad():
+        with torch.no_grad() and torch.cuda.amp.autocast(dtype=torch.float16) and torch.backends.cuda.sdp_kernel(
+                enable_flash=True,
+                enable_math=True,
+                enable_mem_efficient=True):
             outputs = model.generate(**batch)
             outputs = processor.batch_decode(outputs, skip_special_tokens=True)
             predictions.extend(outputs)
