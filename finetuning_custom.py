@@ -152,17 +152,24 @@ for epoch in range(CFG.epochs):
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         model.eval()
+        break
     val_loss = 0
+    predictions = []
+    labels = []
+
     for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
         with torch.no_grad():
-            outputs = model(**batch)
-            accelerate.log({"eval_loss": outputs.loss.item()})
-            val_loss += outputs.loss.item()
-
+            outputs = model.generate(**batch)
+            outputs = processor.batch_decode(outputs, skip_special_tokens=True)
+            predictions.extend(outputs)
+            labels.extend(processor.batch_decode(batch["labels"], skip_special_tokens=True))
+    cer = metric.compute(predictions=predictions, references=labels)
+    accelerate.log({"cer": cer})
+    accelerate.print(f"Epoch {epoch} CER: {cer}")
     model = accelerate.unwrap_model(model)
     accelerate.print(
-        f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)} Validation loss: {val_loss / len(eval_dataloader)}")
+        f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     if accelerate.is_local_main_process:
         model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", safe_serialization=True)
         processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", )
