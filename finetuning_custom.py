@@ -33,7 +33,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1e-6)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 16
+    batch_size = 8
     batch_size_per_device = batch_size // 2
     epochs = 5
     num_workers = os.cpu_count()
