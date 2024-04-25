@@ -22,7 +22,7 @@ tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="tr
 feature_extractor = WhisperFeatureExtractor.from_pretrained(model)
 processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
-model = WhisperForConditionalGeneration.from_pretrained(model,  )
+model = WhisperForConditionalGeneration.from_pretrained(model, )
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
@@ -107,7 +107,8 @@ class WhisperDataset(Dataset):
 # Prepare DataLoader for training and evaluation
 train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers, shuffle=True)
-eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size, collate_fn=data_collator,
+eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size * 8,
+                             collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
@@ -141,8 +142,8 @@ for epoch in range(CFG.epochs):
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
         with  torch.backends.cuda.sdp_kernel(enable_flash=True,
-                                                                                             enable_math=True,
-                                                                                             enable_mem_efficient=True) and accelerate.accumulate(
+                                             enable_math=True,
+                                             enable_mem_efficient=True) and accelerate.accumulate(
             model):
             outputs = model(**batch)
 
@@ -160,7 +161,7 @@ for epoch in range(CFG.epochs):
 
     for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
-        with torch.no_grad()  and torch.backends.cuda.sdp_kernel(
+        with torch.no_grad() and torch.backends.cuda.sdp_kernel(
                 enable_flash=True,
                 enable_math=True,
                 enable_mem_efficient=True):
