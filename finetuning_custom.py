@@ -23,7 +23,7 @@ tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="tr
 feature_extractor = WhisperFeatureExtractor.from_pretrained(model)
 processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
-model = WhisperForConditionalGeneration.from_pretrained(model)
+model = WhisperForConditionalGeneration.from_pretrained(model, torch_dtype=torch.float16, )
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
@@ -96,7 +96,8 @@ class WhisperDataset(Dataset):
             feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
 
         # encode target text to label ids
-        batch["labels"] = tokenizer(batch["transcript"], truncation=True, max_length=448, padding="max_length").input_ids
+        batch["labels"] = tokenizer(batch["transcript"], truncation=True, max_length=448,
+                                    padding="max_length").input_ids
         return batch
 
     def __getitem__(self, idx):
