@@ -22,7 +22,7 @@ tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="tr
 feature_extractor = WhisperFeatureExtractor.from_pretrained(model)
 processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
-model = WhisperForConditionalGeneration.from_pretrained(model, torch_dtype=torch.float16, )
+model = WhisperForConditionalGeneration.from_pretrained(model,  )
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
@@ -140,7 +140,7 @@ for epoch in range(CFG.epochs):
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
-        with torch.cuda.amp.autocast(dtype=torch.float16) and torch.backends.cuda.sdp_kernel(enable_flash=True,
+        with  torch.backends.cuda.sdp_kernel(enable_flash=True,
                                                                                              enable_math=True,
                                                                                              enable_mem_efficient=True) and accelerate.accumulate(
             model):
@@ -160,7 +160,7 @@ for epoch in range(CFG.epochs):
 
     for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
-        with torch.no_grad() and torch.cuda.amp.autocast(dtype=torch.float16) and torch.backends.cuda.sdp_kernel(
+        with torch.no_grad()  and torch.backends.cuda.sdp_kernel(
                 enable_flash=True,
                 enable_math=True,
                 enable_mem_efficient=True):
