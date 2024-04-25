@@ -150,7 +150,14 @@ for epoch in range(CFG.epochs):
         optimizer.step()
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
-        # accelerate.print("WER: ", compute_metrics(outputs, batch['labels'])["wer"])
+        model.eval()
+    for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
+                      disable=not accelerate.is_local_main_process):
+        with torch.no_grad():
+            outputs = model(**batch)
+            accelerate.log({"eval_loss": outputs.loss})
+
+
 
     model = accelerate.unwrap_model(model)
     accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
