@@ -28,7 +28,7 @@ model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
 model.use_cache = False
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-6)
 
 
 class CFG:
@@ -110,7 +110,7 @@ eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CF
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=len(train_dataloader),
+                                            num_warmup_steps=(len(train_dataloader) // torch.cuda.device_count()),
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)

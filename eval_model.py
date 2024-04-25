@@ -5,9 +5,9 @@ import evaluate
 from tqdm import tqdm
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+torch_dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
-model_id = "Mithilss/whisper-large-v3-chinese-finetune-epoch-0-half-other"
+model_id = "Mithilss/whisper-large-v3-chinese-finetune-epoch-3-final"
 
 model = AutoModelForSpeechSeq2Seq.from_pretrained(
     model_id, torch_dtype=torch_dtype, use_flash_attention_2=True, low_cpu_mem_usage=True
@@ -26,11 +26,10 @@ pipe = pipeline(
     max_new_tokens=128,
     chunk_length_s=30,
     batch_size=16,
-    return_timestamps=False,
+    return_timestamps=True,
     torch_dtype=torch_dtype,
     device=device,
-    #generate_kwargs={"language": "chinese", "task": "transcribe"},
-
+    generate_kwargs={ "task": "transcribe"},
 
 )
 
@@ -41,7 +40,8 @@ metric = evaluate.load("cer")
 for i in tqdm(range(eval_samples)):
     sample = next(dataset)
     result = pipe(sample["audio"])
-    print(result['text'])
+    print(result)
     metric.add_batch(predictions=[result['text']], references=[sample["sentence"]], )
+    break
 
 print(f" Fine tuned CER: {metric.compute() * 100}")
