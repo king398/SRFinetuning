@@ -69,11 +69,11 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN",
-                                     split="train+validation",
+common_voice["train"] = load_dataset("Mithilss/L2TS",
+                                     split="train",
                                      token=True, num_proc=8)
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_13_0", "zh-CN", split="test", token=True,
-                                    num_proc=8, ).select(range(100))
+common_voice["test"] = load_dataset("Mithilss/L2TS", split="test", token=True,
+                                    num_proc=8, )
 
 common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 # shuffle the dataset
@@ -105,7 +105,7 @@ class WhisperDataset(Dataset):
 
 # Prepare DataLoader for training and evaluation
 train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
-                              collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers)
+                              collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers,shuffle=True)
 eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size, collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs

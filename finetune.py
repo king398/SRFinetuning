@@ -9,28 +9,12 @@ from typing import Any, Dict, List, Union
 
 model = "openai/whisper-tiny"
 common_voice = IterableDatasetDict()
-from datasets import interleave_datasets, load_dataset
+from datasets import load_dataset
 
-
-def load_streaming_dataset(dataset_name, dataset_config_name, split, **kwargs):
-    if "+" in split:
-        # load multiple splits separated by the `+` symbol *with* streaming mode
-        dataset_splits = [load_dataset(dataset_name, dataset_config_name, split=split_name, streaming=True, **kwargs)
-                          for split_name in split.split("+")]
-        # interleave multiple splits to form one dataset
-        interleaved_dataset = interleave_datasets(dataset_splits)
-        return interleaved_dataset
-    else:
-        # load a single split *with* streaming mode
-        dataset = load_dataset(dataset_name, dataset_config_name, split=split, streaming=True, **kwargs)
-        return dataset
-
-
-common_voice["train"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN",
-                                               split="train+validation",
-                                               token=True, )
-common_voice["test"] = load_streaming_dataset("mozilla-foundation/common_voice_11_0", "zh-CN", split="test", token=True,
-                                              )
+common_voice["train"] = load_dataset("Mithilss/L2TS",
+                                     split="train",
+                                     token=True, )
+common_voice["test"] = load_dataset("Mithilss/L2TS", split="test", token=True, )
 # common_voice['train'] = common_voice['train'].shuffle(seed=42, buffer_size=2500)
 # common_voice['test'] = common_voice['test'].shuffle(seed=42, buffer_size=2500)
 #
@@ -40,9 +24,6 @@ common_voice = common_voice.cast_column("audio", Audio(sampling_rate=16000))
 tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="transcribe")
 feature_extractor = WhisperFeatureExtractor.from_pretrained(model)
 processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
-
-common_voice = common_voice.remove_columns(
-    ["accent", "age", "client_id", "down_votes", "gender", "locale", "path", "segment", "up_votes"])
 
 
 class CFG:
@@ -60,7 +41,7 @@ def prepare_dataset(batch):
     batch["input_features"] = feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
 
     # encode target text to label ids
-    batch["labels"] = tokenizer(batch["sentence"], truncation=True, padding="max_length",
+    batch["labels"] = tokenizer(batch["transcript"], truncation=True, padding="max_length",
                                 max_length=448).input_ids
     return batch
 
@@ -98,7 +79,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-metric = evaluate.load("wer")
+metric = evaluate.load("cer")
 
 
 def compute_metrics(pred):
@@ -125,23 +106,20 @@ model.config.suppress_tokens = []
 from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
-    output_dir="whisper-large-v3-chinese",  # change to a repo name of your choice
+    output_dir="whisper-large-v3-chinese-custom-dataset",  # change to a repo name of your choice
     per_device_train_batch_size=CFG.batch_size_per_device,
     learning_rate=1.25e-6,
     warmup_steps=500,
     fp16=True,
-    evaluation_strategy="steps",
+    evaluation_strategy="epoch",
     per_device_eval_batch_size=CFG.batch_size_per_device,
     predict_with_generate=True,
     generation_max_length=448,
     logging_steps=25,
     report_to=["wandb"],
-    push_to_hub=False,
+    push_to_hub=True,
     save_strategy="steps",
     dataloader_pin_memory=True,
-    eval_steps=40000 // CFG.batch_size,
-    save_steps=40000 // CFG.batch_size,
-    max_steps=int(40000 * CFG.epochs // CFG.batch_size),
     save_safetensors=True,
     save_total_limit=1,
 
