@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
 import evaluate
+import numpy as np
 import torch
 from accelerate import Accelerator
 from bitsandbytes.optim import AdamW8bit
@@ -28,7 +29,7 @@ model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
 model.use_cache = False
 model.generation_config.language = "zh"
-optimizer = AdamW8bit(model.parameters(), lr=1e-6)
+optimizer = AdamW8bit(model.parameters(), lr=1e-5)
 
 
 class CFG:
@@ -136,6 +137,8 @@ def compute_metrics(pred, labels):
 
 # Custom training loop
 for epoch in range(CFG.epochs):
+
+    best_cer = np.inf
     model.train()
     total_loss = 0
 
@@ -172,15 +175,16 @@ for epoch in range(CFG.epochs):
     predictions = [predictions[i] for i in range(len(predictions)) if len(labels[i]) > 0]
     labels = [labels[i] for i in range(len(labels)) if len(labels[i]) > 0]
 
-    cer = metric.compute(predictions=predictions, references=labels)
+    cer = metric.compute(predictions=predictions, references=labels) * 100
     accelerate.log({"cer": cer})
     accelerate.print(f"Epoch {epoch} CER: {cer}")
     model = accelerate.unwrap_model(model)
     accelerate.print(
         f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
-    if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", safe_serialization=True)
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", )
+    if accelerate.is_local_main_process and cer < best_cer:
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", safe_serialization=True)
+        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", )
+        best_cer = cer
     accelerate.wait_for_everyone()
 
 # Save the model
