@@ -28,8 +28,8 @@ processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=toke
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 2 * torch.cuda.device_count()
-    batch_size_per_device = batch_size // 2
+    batch_size = 2
+    batch_size_per_device = 1
     epochs = 2
 
 

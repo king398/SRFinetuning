@@ -1,20 +1,19 @@
-import os
-
-import torch
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-from datasets import load_dataset, IterableDatasetDict, concatenate_datasets, interleave_datasets
-from datasets import Audio
-from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer, WhisperForConditionalGeneration, \
-    get_linear_schedule_with_warmup
-import torch
-import evaluate
-from accelerate import Accelerator
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
-from torch.utils.data import Dataset
 
-accelerate = Accelerator(log_with=['wandb'], mixed_precision="bf16")
+import evaluate
+import torch
+from accelerate import Accelerator
+from bitsandbytes.optim import AdamW8bit
+from datasets import Audio
+from datasets import load_dataset, IterableDatasetDict
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from tqdm import tqdm
+from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer, WhisperForConditionalGeneration, \
+    get_linear_schedule_with_warmup
+
+accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16")
 accelerate.init_trackers(project_name="SR-Finetuning")
 model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
@@ -28,12 +27,12 @@ model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
 model.use_cache = False
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-6)
+optimizer = AdamW8bit(model.parameters(), lr=1e-6)
 
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 4
+    batch_size = 1
     batch_size_per_device = batch_size // torch.cuda.device_count()
     epochs = 5
     num_workers = 8
@@ -105,9 +104,9 @@ class WhisperDataset(Dataset):
 
 
 # Prepare DataLoader for training and evaluation
-train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
+train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=1,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers, shuffle=True)
-eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size, collate_fn=data_collator,
+eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=1, collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
@@ -140,9 +139,9 @@ for epoch in range(CFG.epochs):
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
         optimizer.zero_grad()
-        with torch.cuda.amp.autocast(dtype=torch.bfloat16) and torch.backends.cuda.sdp_kernel(enable_flash=True,
-                                                                                              enable_math=False,
-                                                                                              enable_mem_efficient=False):
+        with torch.cuda.amp.autocast(dtype=torch.float16) and torch.backends.cuda.sdp_kernel(enable_flash=True,
+                                                                                              enable_math=True,
+                                                                                              enable_mem_efficient=True):
             outputs = model(**batch)
 
         loss = outputs.loss
