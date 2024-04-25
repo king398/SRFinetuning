@@ -33,7 +33,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1e-6)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 32
+    batch_size = 16
     batch_size_per_device = batch_size // 2
     epochs = 5
     num_workers = os.cpu_count()
@@ -96,7 +96,7 @@ class WhisperDataset(Dataset):
             feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
 
         # encode target text to label ids
-        batch["labels"] = tokenizer(batch["sentence"], truncation=True, max_length=448, padding="max_length").input_ids
+        batch["labels"] = tokenizer(batch["transcript"], truncation=True, max_length=448, padding="max_length").input_ids
         return batch
 
     def __getitem__(self, idx):
@@ -105,7 +105,7 @@ class WhisperDataset(Dataset):
 
 # Prepare DataLoader for training and evaluation
 train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
-                              collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers,shuffle=True)
+                              collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers, shuffle=True)
 eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size, collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
@@ -151,19 +151,20 @@ for epoch in range(CFG.epochs):
         scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         model.eval()
+    val_loss = 0
     for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
         with torch.no_grad():
             outputs = model(**batch)
-            accelerate.log({"eval_loss": outputs.loss})
-
-
+            accelerate.log({"eval_loss": outputs.loss.item()})
+            val_loss += outputs.loss.item()
 
     model = accelerate.unwrap_model(model)
-    accelerate.print(f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
+    accelerate.print(
+        f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)} Validation loss: {val_loss / len(eval_dataloader)}")
     if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-final", safe_serialization=True)
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-final", )
+        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", safe_serialization=True)
+        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", )
     accelerate.wait_for_everyone()
 
 # Save the model
