@@ -138,7 +138,6 @@ def compute_metrics(pred, labels):
 for epoch in range(CFG.epochs):
     model.train()
     total_loss = 0
-    model.gradient_checkpointing_enable()
 
     for i, batch in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}",
                                    disable=not accelerate.is_local_main_process)):
@@ -160,7 +159,6 @@ for epoch in range(CFG.epochs):
     val_loss = 0
     predictions = []
     labels = []
-    model.gradient_checkpointing_disable()
 
     for batch in tqdm(eval_dataloader, desc=f"Evaluating Epoch {epoch}",
                       disable=not accelerate.is_local_main_process):
@@ -172,15 +170,16 @@ for epoch in range(CFG.epochs):
             outputs = processor.batch_decode(outputs, skip_special_tokens=True)
             predictions.extend(outputs)
             labels.extend(processor.batch_decode(batch["labels"], skip_special_tokens=True))
+            break
     cer = metric.compute(predictions=predictions, references=labels)
     accelerate.log({"cer": cer})
     accelerate.print(f"Epoch {epoch} CER: {cer}")
     model = accelerate.unwrap_model(model)
     accelerate.print(
         f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
-    if accelerate.is_local_main_process:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", safe_serialization=True)
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", )
+    #if accelerate.is_local_main_process:
+    #    model.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", safe_serialization=True)
+    #    processor.push_to_hub(f"whisper-large-v3-chinese-finetune-epoch-{epoch}-custom-dataset", )
     accelerate.wait_for_everyone()
 
 # Save the model
