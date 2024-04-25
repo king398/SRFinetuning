@@ -181,11 +181,10 @@ for epoch in range(CFG.epochs):
     model = accelerate.unwrap_model(model)
     accelerate.print(
         f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
-    if accelerate.is_local_main_process and cer < best_cer:
-        model.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", safe_serialization=True)
-        processor.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", )
-        best_cer = cer
     accelerate.wait_for_everyone()
+if accelerate.is_main_process:
+    model.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", safe_serialization=True)
+    processor.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", )
 
 # Save the model
 accelerate.end_training()
