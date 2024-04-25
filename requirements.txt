@@ -1,6 +1,6 @@
-evaluate~=0.4.0
-datasets~=2.15.0
-transformers~=4.35.0
+evaluate
+datasets
+transformers
 accelerate
 nvitop
 wandb
