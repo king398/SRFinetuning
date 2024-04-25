@@ -36,7 +36,7 @@ class CFG:
     batch_size = 4
     batch_size_per_device = batch_size // torch.cuda.device_count()
     epochs = 5
-    num_workers = 16
+    num_workers = 8
 
 
 @dataclass
