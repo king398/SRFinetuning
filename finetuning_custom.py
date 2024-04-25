@@ -169,6 +169,8 @@ for epoch in range(CFG.epochs):
             outputs = processor.batch_decode(outputs, skip_special_tokens=True)
             predictions.extend(outputs)
             labels.extend(processor.batch_decode(batch["labels"], skip_special_tokens=True))
+    predictions = [predictions[i] for i in range(len(predictions)) if len(labels[i]) > 0]
+    labels = [labels[i] for i in range(len(labels)) if len(labels[i]) > 0]
 
     cer = metric.compute(predictions=predictions, references=labels)
     accelerate.log({"cer": cer})
