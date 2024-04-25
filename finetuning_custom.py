@@ -27,6 +27,7 @@ model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
 model.use_cache = False
+model.generation_config.language = "zh"
 optimizer = AdamW8bit(model.parameters(), lr=1e-6)
 
 
