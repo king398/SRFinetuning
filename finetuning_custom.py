@@ -36,7 +36,7 @@ augmentation = Compose(
     ]
 )
 
-accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16", gradient_accumulation_steps=4)
+accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16", gradient_accumulation_steps=2)
 accelerate.init_trackers(project_name="SR-Finetuning-custom")
 model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
@@ -56,7 +56,7 @@ optimizer = AdamW8bit(model.parameters(), lr=1e-5)
 
 class CFG:
     num_devices = torch.cuda.device_count()
-    batch_size = 4
+    batch_size = 8
     batch_size_per_device = batch_size // torch.cuda.device_count()
     epochs = 5
     num_workers = 8
@@ -206,8 +206,8 @@ for epoch in range(CFG.epochs):
         f"Average training loss for epoch {epoch}: {total_loss / len(train_dataloader)}")
     accelerate.wait_for_everyone()
 if accelerate.is_main_process:
-    model.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", safe_serialization=True)
-    processor.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset", )
+    model.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset-augmentations", safe_serialization=True)
+    processor.push_to_hub(f"whisper-large-v3-chinese-finetune-custom-dataset-augmentations", )
 
 # Save the model
 accelerate.end_training()
