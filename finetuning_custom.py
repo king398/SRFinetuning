@@ -131,7 +131,7 @@ class WhisperDataset(Dataset):
 # Prepare DataLoader for training and evaluation
 train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers, shuffle=True)
-eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size * 16,
+eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CFG.batch_size * 8,
                              collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
