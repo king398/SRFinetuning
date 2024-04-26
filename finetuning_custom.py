@@ -113,7 +113,7 @@ class WhisperDataset(Dataset):
     def prepare_dataset(self, batch):
         # load and resample audio data from 48 to 16kHz
         audio = batch["audio"]
-        audio["array"] = augmentation(audio["array"], sample_rate=audio["sampling_rate"])["audio"]
+        audio["array"] = augmentation(audio["array"], sample_rate=audio["sampling_rate"])
 
         # compute log-Mel input features from input audio array
         batch["input_features"] = \
