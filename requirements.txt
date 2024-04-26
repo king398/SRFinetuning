@@ -9,3 +9,4 @@ soundfile
 librosa
 jiwer
 bitsandbytes
+audiomentations

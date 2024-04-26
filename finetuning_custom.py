@@ -13,6 +13,28 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer, WhisperForConditionalGeneration, \
     get_linear_schedule_with_warmup
+from audiomentations import (
+    AddGaussianNoise,
+    Compose,
+    Gain,
+    OneOf,
+    PitchShift,
+    TimeStretch,
+)
+
+augmentation = Compose(
+    [
+        TimeStretch(min_rate=0.9, max_rate=1.1, p=0.2, leave_length_unchanged=False),
+        Gain(min_gain_in_db=-6, max_gain_in_db=6, p=0.1),
+        PitchShift(min_semitones=-4, max_semitones=4, p=0.2),
+        OneOf(
+            [
+                AddGaussianNoise(min_amplitude=0.005, max_amplitude=0.015, p=1.0),
+            ],
+            p=0.2,
+        ),
+    ]
+)
 
 accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16", gradient_accumulation_steps=4)
 accelerate.init_trackers(project_name="SR-Finetuning-custom")
@@ -91,6 +113,7 @@ class WhisperDataset(Dataset):
     def prepare_dataset(self, batch):
         # load and resample audio data from 48 to 16kHz
         audio = batch["audio"]
+        audio["array"] = augmentation(audio["array"], sample_rate=audio["sampling_rate"])["audio"]
 
         # compute log-Mel input features from input audio array
         batch["input_features"] = \
@@ -113,7 +136,7 @@ eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=CF
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=(len(train_dataloader) // torch.cuda.device_count()),
+                                            num_warmup_steps=(len(train_dataloader) // torch.cuda.device_count() // 2),
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
@@ -151,11 +174,11 @@ for epoch in range(CFG.epochs):
             model):
             outputs = model(**batch)
 
-        loss = outputs.loss
-        total_loss += loss.item()
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
+            loss = outputs.loss
+            total_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
         accelerate.log({"lr": optimizer.param_groups[0]['lr'], "train_loss": loss.item()})
         model.eval()
     val_loss = 0
