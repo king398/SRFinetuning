@@ -20,6 +20,7 @@ from audiomentations import (
     OneOf,
     PitchShift,
     TimeStretch,
+
 )
 
 augmentation = Compose(
@@ -104,16 +105,17 @@ common_voice["train"] = common_voice["train"].shuffle(seed=42)
 
 
 class WhisperDataset(Dataset):
-    def __init__(self, dataset: IterableDatasetDict):
+    def __init__(self, dataset: IterableDatasetDict, augmentation=None):
         self.dataset = dataset
+        self.augmentation = augmentation
 
     def __len__(self):
         return len(self.dataset)
 
     def prepare_dataset(self, batch):
-        # load and resample audio data from 48 to 16kHz
         audio = batch["audio"]
-        audio["array"] = augmentation(audio["array"], sample_rate=audio["sampling_rate"])
+        if self.augmentation:
+            audio["array"] = augmentation(audio["array"], sample_rate=audio["sampling_rate"])
 
         # compute log-Mel input features from input audio array
         batch["input_features"] = \
@@ -129,14 +131,15 @@ class WhisperDataset(Dataset):
 
 
 # Prepare DataLoader for training and evaluation
-train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
+train_dataloader = DataLoader(WhisperDataset(common_voice["train"], augmentation=augmentation),
+                              batch_size=CFG.batch_size,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers, shuffle=True)
 eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=16,
                              collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=(len(train_dataloader) // torch.cuda.device_count() // 2),
+                                            num_warmup_steps=(len(train_dataloader)),
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
