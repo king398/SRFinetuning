@@ -97,7 +97,7 @@ class WhisperDataset(Dataset):
         audio = batch["audio"]
 
         # compute log-Mel input features from input audio array
-        batch["input_features"] = \
+        batch["input_values"] = \
             feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
         batch['transcript'] = normalizer(batch['transcript'])
         # encode target text to label ids
