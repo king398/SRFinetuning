@@ -36,7 +36,7 @@ augmentation = Compose(
     ]
 )
 
-accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp16", gradient_accumulation_steps=2)
+accelerate = Accelerator(log_with=['wandb'], mixed_precision="fp8", gradient_accumulation_steps=2)
 accelerate.init_trackers(project_name="SR-Finetuning-custom")
 model = "openai/whisper-large-v3"
 common_voice = IterableDatasetDict()
