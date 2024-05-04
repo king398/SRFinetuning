@@ -131,7 +131,7 @@ class WhisperDataset(Dataset):
 # Prepare DataLoader for training and evaluation
 train_dataloader = DataLoader(WhisperDataset(common_voice["train"]), batch_size=CFG.batch_size,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers, shuffle=True)
-eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=24,
+eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=16,
                              collate_fn=data_collator,
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
@@ -141,22 +141,6 @@ scheduler = get_linear_schedule_with_warmup(optimizer,
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
 metric = evaluate.load("cer")
-
-
-def compute_metrics(pred, labels):
-    pred_ids = pred.argmax(-1)
-
-    # replace -100 with the pad_token_id
-    labels[labels == -100] = tokenizer.pad_token_id
-
-    # we do not want to group tokens when computing the metrics
-    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-    wer = 100 * metric.compute(predictions=pred_str, references=label_str)
-
-    return {"wer": wer, "pred_str": pred_str, "label_str": label_str}
-
 
 # Custom training loop
 for epoch in range(CFG.epochs):
