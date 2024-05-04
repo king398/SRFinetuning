@@ -12,47 +12,27 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer, WhisperForConditionalGeneration, \
-    get_linear_schedule_with_warmup
-from audiomentations import (
-    AddGaussianNoise,
-    Compose,
-    Gain,
-    OneOf,
-    PitchShift,
-    TimeStretch,
-
-)
-
-augmentation = Compose(
-    [
-        TimeStretch(min_rate=0.9, max_rate=1.1, p=0.2, leave_length_unchanged=False),
-        Gain(min_gain_in_db=-6, max_gain_in_db=6, p=0.1),
-        PitchShift(min_semitones=-4, max_semitones=4, p=0.2),
-        OneOf(
-            [
-                AddGaussianNoise(min_amplitude=0.005, max_amplitude=0.015, p=1.0),
-            ],
-            p=0.2,
-        ),
-    ]
-)
+    get_linear_schedule_with_warmup, Wav2Vec2ProcessorWithLM, Wav2Vec2FeatureExtractor, Wav2Vec2Tokenizer, \
+    Wav2Vec2ForCTC
+from transformers.models.whisper.english_normalizer import BasicTextNormalizer
 
 accelerate = Accelerator(log_with=['wandb'], mixed_precision="bf16", gradient_accumulation_steps=2)
 accelerate.init_trackers(project_name="SR-Finetuning-custom")
-model = "openai/whisper-large-v3"
+model = "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn"
 common_voice = IterableDatasetDict()
-# Initialize the model and optimizer
-tokenizer = WhisperTokenizer.from_pretrained(model, language="Chinese", task="transcribe")
-feature_extractor = WhisperFeatureExtractor.from_pretrained(model)
-processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
+tokenizer = Wav2Vec2Tokenizer.from_pretrained(model, language="Chinese", task="transcribe")
+feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model)
+processor = Wav2Vec2ProcessorWithLM(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
-model = WhisperForConditionalGeneration.from_pretrained(model, )
+model = Wav2Vec2ForCTC.from_pretrained(model, )
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 model.gradient_checkpointing_enable()
 model.use_cache = False
 model.generation_config.language = "zh"
 optimizer = AdamW8bit(model.parameters(), lr=1e-5)
+
+normalizer = BasicTextNormalizer()
 
 
 class CFG:
@@ -114,15 +94,13 @@ class WhisperDataset(Dataset):
 
     def prepare_dataset(self, batch):
         audio = batch["audio"]
-        if self.augmentation:
-            audio["array"] = augmentation(audio["array"], sample_rate=audio["sampling_rate"])
 
         # compute log-Mel input features from input audio array
         batch["input_features"] = \
             feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
-
+        batch['transcript'] = normalizer(batch['transcript'])
         # encode target text to label ids
-        batch["labels"] = tokenizer(batch["transcript"], truncation=True, max_length=448,
+        batch["labels"] = tokenizer(batch["transcript"], truncation=True, max_length=256,
                                     padding="max_length").input_ids
         return batch
 
@@ -131,7 +109,7 @@ class WhisperDataset(Dataset):
 
 
 # Prepare DataLoader for training and evaluation
-train_dataloader = DataLoader(WhisperDataset(common_voice["train"], augmentation=augmentation),
+train_dataloader = DataLoader(WhisperDataset(common_voice["train"]),
                               batch_size=CFG.batch_size,
                               collate_fn=data_collator, pin_memory=True, num_workers=CFG.num_workers, shuffle=True)
 eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=16,
@@ -139,7 +117,7 @@ eval_dataloader = DataLoader(WhisperDataset(common_voice["test"]), batch_size=16
                              pin_memory=True, num_workers=CFG.num_workers)
 total_steps = len(train_dataloader) * CFG.epochs
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=(len(train_dataloader)),
+                                            num_warmup_steps=0,
                                             num_training_steps=total_steps)
 
 model, train_dataloader, eval_dataloader = accelerate.prepare(model, train_dataloader, eval_dataloader)
