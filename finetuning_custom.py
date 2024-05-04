@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer, WhisperForConditionalGeneration, \
-    get_linear_schedule_with_warmup, Wav2Vec2ProcessorWithLM, Wav2Vec2FeatureExtractor, Wav2Vec2Tokenizer, \
+    get_linear_schedule_with_warmup, Wav2Vec2Processor, Wav2Vec2FeatureExtractor, Wav2Vec2Tokenizer, \
     Wav2Vec2ForCTC
 from transformers.models.whisper.english_normalizer import BasicTextNormalizer
 
@@ -22,7 +22,7 @@ model = "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn"
 common_voice = IterableDatasetDict()
 tokenizer = Wav2Vec2Tokenizer.from_pretrained(model, language="Chinese", task="transcribe")
 feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model)
-processor = Wav2Vec2ProcessorWithLM(feature_extractor=feature_extractor, tokenizer=tokenizer)
+processor = Wav2Vec2Processor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
 model = Wav2Vec2ForCTC.from_pretrained(model, )
 model.config.forced_decoder_ids = None
